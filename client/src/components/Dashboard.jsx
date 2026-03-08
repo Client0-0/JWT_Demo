@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import api from '../axios/api';
+import ProfileSettingsModal from './ProfileSettingsModal';
 
 const Dashboard = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [protectedData, setProtectedData] = useState(null);
     const [error, setError] = useState('');
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     useEffect(() => {
         const fetchProtectedData = async () => {
@@ -37,9 +39,17 @@ const Dashboard = () => {
                         ● Authenticated Session Active
                     </p>
                 </div>
-                <button className="danger" onClick={handleLogout}>
-                    Sign Out
-                </button>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                    <button
+                        onClick={() => setIsSettingsOpen(true)}
+                        style={{ background: 'transparent', border: '1px solid var(--primary-color)' }}
+                    >
+                        Profile Settings
+                    </button>
+                    <button className="danger" onClick={handleLogout}>
+                        Sign Out
+                    </button>
+                </div>
             </header>
 
             <div style={{ display: 'grid', gap: '2rem', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
@@ -58,7 +68,7 @@ const Dashboard = () => {
                         </div>
                         <div>
                             <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Role</span>
-                            <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', borderRadius: 'full', fontSize: '0.85rem', borderRadius: '999px', marginTop: '0.25rem' }}>
+                            <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', borderRadius: '999px', fontSize: '0.85rem', marginTop: '0.25rem' }}>
                                 End User
                             </span>
                         </div>
@@ -96,6 +106,10 @@ const Dashboard = () => {
                 }
                 `}
             </style>
+
+            {isSettingsOpen && (
+                <ProfileSettingsModal onClose={() => setIsSettingsOpen(false)} />
+            )}
         </div>
     );
 };

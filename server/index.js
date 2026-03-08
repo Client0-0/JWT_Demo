@@ -9,8 +9,17 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 // Using credentials: true is required when dealing with cookies across domains/ports
+const allowedOrigins = ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'];
 app.use(cors({
-    origin: 'http://localhost:5173',
+    origin: function (origin, callback) {
+        // allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) === -1) {
+            var msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    },
     credentials: true
 }));
 app.use(express.json());
@@ -20,9 +29,9 @@ app.use(cookieParser());
 const ACCESS_TOKEN_SECRET = 'your_super_secret_access_token';
 const REFRESH_TOKEN_SECRET = 'your_super_secret_refresh_token';
 
-// Dummy Database
-const users = [
-    { id: 1, email: 'user@example.com', password: 'password123', name: 'Demo User' }
+// Dummy Database (using let so we can modify it)
+let users = [
+    { id: 1, email: 'user@example.com', password: 'password123', name: 'Demo User', role: 'End User' }
 ];
 
 // In-memory refresh token store (in production, use a database or Redis)
@@ -137,6 +146,39 @@ app.get('/protected', authenticateToken, (req, res) => {
         user: req.user,
         secretInfo: 'You found the secret treasure because your access token was valid.'
     });
+});
+
+// 5. Update Profile Endpoint
+app.put('/api/user/profile', authenticateToken, (req, res) => {
+    const { name, email } = req.body;
+    const userId = req.user.id; // from authenticateToken middleware
+
+    const userIndex = users.findIndex(u => u.id === userId);
+    if (userIndex === -1) return res.status(404).json({ error: 'User not found' });
+
+    // Update user
+    users[userIndex] = { ...users[userIndex], name: name || users[userIndex].name, email: email || users[userIndex].email };
+
+    res.json({ message: 'Profile updated successfully', user: { id: users[userIndex].id, email: users[userIndex].email, name: users[userIndex].name, role: users[userIndex].role } });
+});
+
+// 6. Change Password Endpoint
+app.put('/api/user/password', authenticateToken, (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.id;
+
+    const userIndex = users.findIndex(u => u.id === userId);
+    if (userIndex === -1) return res.status(404).json({ error: 'User not found' });
+
+    // Verify current password
+    if (users[userIndex].password !== currentPassword) {
+        return res.status(400).json({ error: 'Incorrect current password' });
+    }
+
+    // Update password
+    users[userIndex].password = newPassword;
+
+    res.json({ message: 'Password updated successfully' });
 });
 
 // Start Server
