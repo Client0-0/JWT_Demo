@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import { useAuth } from '../auth/AuthProvider';
 import api from '../axios/api';
 import ProfileSettingsModal from './ProfileSettingsModal';
+import { useCountdown } from '../hooks/useCountdown';
 
 const Dashboard = () => {
     const { user, logout } = useAuth();
@@ -11,10 +13,27 @@ const Dashboard = () => {
     const [error, setError] = useState('');
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+    // We add a piece of state just to force a re-render when we do a background refresh
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+    // Read expiries from local storage
+    const accessTokenExp = Number(localStorage.getItem('accessTokenExp'));
+    const refreshTokenExp = Number(localStorage.getItem('refreshTokenExp'));
+
+    const {
+        formattedTime: accTime,
+        isExpired: accExpired
+    } = useCountdown(accessTokenExp);
+
+    const {
+        formattedTime: refTime,
+        isExpired: refExpired
+    } = useCountdown(refreshTokenExp);
+
     useEffect(() => {
         const fetchProtectedData = async () => {
             try {
-                const response = await api.get('/protected');
+                const response = await api.get('/api/protected');
                 setProtectedData(response.data);
             } catch (err) {
                 console.error("Failed to fetch protected data", err);
@@ -23,7 +42,40 @@ const Dashboard = () => {
         };
 
         fetchProtectedData();
-    }, []);
+    }, [refreshTrigger]); // Add refreshTrigger to dependencies to re-fetch data
+
+    const doBackgroundRefresh = useCallback(async () => {
+        try {
+            const res = await api.post('/api/refresh');
+            const newAccessToken = res.data.accessToken;
+            const newAccessTokenExp = res.data.accessTokenExp;
+
+            localStorage.setItem('accessToken', newAccessToken);
+            if (newAccessTokenExp) {
+                localStorage.setItem('accessTokenExp', newAccessTokenExp);
+            }
+
+            toast.info("🔄 Access token expired. New token generated instantly in background!", {
+                autoClose: 3000,
+            });
+
+            // Re-render the dashboard to update the countdown timer
+            setRefreshTrigger(prev => prev + 1);
+
+        } catch (err) {
+            console.error("Background refresh failed", err);
+            toast.error("Session completely expired. Please log in again.");
+            logout();
+            navigate('/login');
+        }
+    }, [logout, navigate]);
+
+    // Triggers instantly when the timer hits 0
+    useEffect(() => {
+        if (accExpired && !refExpired) {
+            doBackgroundRefresh();
+        }
+    }, [accExpired, refExpired, doBackgroundRefresh]);
 
     const handleLogout = () => {
         logout();
@@ -68,9 +120,39 @@ const Dashboard = () => {
                         </div>
                         <div>
                             <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Role</span>
-                            <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', borderRadius: '999px', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                            <span style={{ display: 'inline-block', padding: '0.25rem 0.75rem', background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', fontSize: '0.85rem', borderRadius: '999px', marginTop: '0.25rem' }}>
                                 End User
                             </span>
+                        </div>
+
+                        <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--card-border)' }}>
+                            <h4 style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 0.5rem 0' }}>Session Timers</h4>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                <span style={{ fontSize: '0.9rem' }}>Access Token:</span>
+                                <span style={{
+                                    fontFamily: 'monospace',
+                                    color: accExpired ? 'var(--danger-bg)' : 'var(--success-text)',
+                                    fontWeight: 'bold',
+                                    background: 'rgba(0,0,0,0.3)',
+                                    padding: '0.2rem 0.5rem',
+                                    borderRadius: '4px'
+                                }}>
+                                    {accTime}
+                                </span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.9rem' }}>Refresh Token:</span>
+                                <span style={{
+                                    fontFamily: 'monospace',
+                                    color: refExpired ? 'var(--danger-bg)' : 'var(--success-text)',
+                                    fontWeight: 'bold',
+                                    background: 'rgba(0,0,0,0.3)',
+                                    padding: '0.2rem 0.5rem',
+                                    borderRadius: '4px'
+                                }}>
+                                    {refTime}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -20,12 +20,14 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (email, password) => {
         try {
-            const response = await api.post('/login', { email, password });
+            const response = await api.post('/api/login', { email, password });
 
-            const { user: userData, accessToken } = response.data;
+            const { user: userData, accessToken, accessTokenExp, refreshTokenExp } = response.data;
 
-            // Store the access token for the Axios interceptor to use
+            // Store the access token and expiries
             localStorage.setItem('accessToken', accessToken);
+            localStorage.setItem('accessTokenExp', accessTokenExp);
+            localStorage.setItem('refreshTokenExp', refreshTokenExp);
 
             // Store the user info for the UI
             localStorage.setItem('user', JSON.stringify(userData));
@@ -41,12 +43,14 @@ export const AuthProvider = ({ children }) => {
     const logout = async () => {
         try {
             // Tell the server to clear the refresh token cookie
-            await api.post('/logout');
+            await api.post('/api/logout');
         } catch (error) {
             console.error('Logout failed:', error);
         } finally {
             // Clear local state regardless of server response
             localStorage.removeItem('accessToken');
+            localStorage.removeItem('accessTokenExp');
+            localStorage.removeItem('refreshTokenExp');
             localStorage.removeItem('user');
             setUser(null);
         }

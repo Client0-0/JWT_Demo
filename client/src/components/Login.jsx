@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 
@@ -10,10 +10,16 @@ const Login = () => {
     const { login, isAuthenticated } = useAuth();
     const navigate = useNavigate();
 
-    if (isAuthenticated) {
-        navigate('/dashboard');
-        return null;
-    }
+    // Redirect to dashboard if already authenticated
+    // IMPORTANT: Must be in a useEffect, NOT called directly in the render body.
+    // Calling navigate() during render is illegal in React and causes a blank screen.
+    useEffect(() => {
+        if (isAuthenticated) {
+            navigate('/dashboard');
+        }
+    }, [isAuthenticated, navigate]);
+
+    if (isAuthenticated) return null;
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -27,7 +33,7 @@ const Login = () => {
             } else {
                 setError('Invalid credentials');
             }
-        } catch (err) {
+        } catch {
             setError('An error occurred during login');
         } finally {
             setIsLoading(false);

@@ -1,8 +1,9 @@
 import axios from 'axios';
+import { toast } from 'react-toastify';
 
 // Create a custom axios instance
 const api = axios.create({
-    baseURL: 'http://127.0.0.1:3000',
+    // Using Vite proxy instead of explicit baseURL to bypass browser same-site strictness
     // Important: Required to send/receive cookies (like our refresh token)
     withCredentials: true
 });
@@ -36,30 +37,30 @@ api.interceptors.response.use(
             originalRequest._retry = true;
 
             try {
-                // Attempt to get a new access token using the refresh token (sent automatically via cookie)
-                const res = await api.post('/refresh');
-
+                const res = await api.post('/api/refresh');
                 const newAccessToken = res.data.accessToken;
+                const newAccessTokenExp = res.data.accessTokenExp;
 
-                // Save the new token
                 localStorage.setItem('accessToken', newAccessToken);
+                if (newAccessTokenExp) {
+                    localStorage.setItem('accessTokenExp', newAccessTokenExp);
+                }
 
-                // Update the Authorization header for the original (failed) request
-                // and for future requests made by this axios instance
                 api.defaults.headers.common['Authorization'] = `Bearer ${newAccessToken}`;
                 originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
 
-                // Retry the original request with the new token
+                toast.info("🔌 API Interceptor fired: Token refreshed silently before request.", {
+                    autoClose: 3000,
+                });
+
                 return api(originalRequest);
 
             } catch (refreshError) {
-                // If the refresh token also fails (e.g., it expired), the user needs to log in again
-                // In a real app, you might want to trigger a global logout event here
                 console.error("Session expired. Please log in again.");
                 localStorage.removeItem('accessToken');
+                localStorage.removeItem('accessTokenExp');
+                localStorage.removeItem('refreshTokenExp');
                 localStorage.removeItem('user');
-                // You could emit an event here to notify the AuthProvider to update state
-                // For simplicity, we'll let the next component re-render handle it
                 return Promise.reject(refreshError);
             }
         }
