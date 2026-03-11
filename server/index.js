@@ -38,13 +38,16 @@ let users = [
 let refreshTokens = [];
 
 // Helper functions for tokens
+// Expiration durations in seconds
+const ACCESS_TOKEN_EXPIRATION = 15;
+const REFRESH_TOKEN_EXPIRATION = 60 * 60; // 7 days
+
 const generateAccessToken = (user) => {
-    // Expires in 15 seconds for demonstration purposes
-    return jwt.sign({ id: user.id, email: user.email }, ACCESS_TOKEN_SECRET, { expiresIn: '15s' });
+    return jwt.sign({ id: user.id, email: user.email }, ACCESS_TOKEN_SECRET, { expiresIn: `${ACCESS_TOKEN_EXPIRATION}s` });
 };
 
 const generateRefreshToken = (user) => {
-    const refreshToken = jwt.sign({ id: user.id, email: user.email }, REFRESH_TOKEN_SECRET, { expiresIn: '7d' });
+    const refreshToken = jwt.sign({ id: user.id, email: user.email }, REFRESH_TOKEN_SECRET, { expiresIn: `${REFRESH_TOKEN_EXPIRATION}s` });
     refreshTokens.push(refreshToken);
     return refreshToken;
 };
@@ -52,7 +55,7 @@ const generateRefreshToken = (user) => {
 // --- ROUTES ---
 
 // 1. Login Endpoint
-app.post('/login', (req, res) => {
+app.post('/api/login', (req, res) => {
     const { email, password } = req.body;
 
     const user = users.find(u => u.email === email && u.password === password);
@@ -64,24 +67,31 @@ app.post('/login', (req, res) => {
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
+    // Calculate absolute expiration timestamps (in milliseconds)
+    const now = Date.now();
+    const accessTokenExp = now + (ACCESS_TOKEN_EXPIRATION * 1000);
+    const refreshTokenExp = now + (REFRESH_TOKEN_EXPIRATION * 1000);
+
     // Send Refresh Token in an HttpOnly cookie
     res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production', // true if using HTTPS
         sameSite: 'lax', // or 'strict' depending on cross-site requirements
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        maxAge: REFRESH_TOKEN_EXPIRATION * 1000
     });
 
     // Send Access Token and basic user info in response body
     res.json({
         message: 'Login successful',
         user: { id: user.id, email: user.email, name: user.name },
-        accessToken
+        accessToken,
+        accessTokenExp,
+        refreshTokenExp
     });
 });
 
 // 2. Refresh Token Endpoint
-app.post('/refresh', (req, res) => {
+app.post('/api/refresh', (req, res) => {
     const refreshToken = req.cookies.refreshToken;
 
     if (!refreshToken) {
@@ -100,18 +110,20 @@ app.post('/refresh', (req, res) => {
         // Generate a new access token
         // Important: Notice we use the payload from the decrypted refresh token
         const newAccessToken = generateAccessToken({ id: user.id, email: user.email });
+        const accessTokenExp = Date.now() + (ACCESS_TOKEN_EXPIRATION * 1000);
 
-        // (Optional but recommended) Rotate the refresh token as well for better security
-        // const newRefreshToken = generateRefreshToken({ id: user.id, email: user.email });
-        // refreshTokens = refreshTokens.filter(token => token !== refreshToken);
-        // res.cookie('refreshToken', newRefreshToken, { httpOnly: true, secure: false, sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000 });
+        // Since we aren't rotating refresh tokens, we return the user's implicit expiration if we wanted to calculate it.
+        // The easiest fix for the frontend is to just leave the local storage refresh token expiration alone rather than overwriting it with undefined.
 
-        res.json({ accessToken: newAccessToken });
+        res.json({
+            accessToken: newAccessToken,
+            accessTokenExp
+        });
     });
 });
 
 // 3. Logout Endpoint
-app.post('/logout', (req, res) => {
+app.post('/api/logout', (req, res) => {
     const refreshToken = req.cookies.refreshToken;
 
     // Remove from our "database"
@@ -140,7 +152,7 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-app.get('/protected', authenticateToken, (req, res) => {
+app.get('/api/protected', authenticateToken, (req, res) => {
     res.json({
         message: 'This is protected data!',
         user: req.user,
