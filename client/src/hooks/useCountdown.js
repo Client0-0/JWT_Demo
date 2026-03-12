@@ -6,7 +6,11 @@ import { useState, useEffect } from 'react';
  * @returns {object} { isExpired: boolean, formattedTime: string, remainingSeconds: number }
  */
 export function useCountdown(targetTimestamp) {
-    const [remainingSeconds, setRemainingSeconds] = useState(0);
+    // Initialize from the target immediately to avoid a false isExpired=true flash on the first render
+    const [remainingSeconds, setRemainingSeconds] = useState(() => {
+        if (!targetTimestamp) return 0;
+        return Math.max(0, Math.floor((targetTimestamp - Date.now()) / 1000));
+    });
 
     useEffect(() => {
         if (!targetTimestamp) {

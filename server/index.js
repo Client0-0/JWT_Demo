@@ -40,7 +40,7 @@ let refreshTokens = [];
 // Helper functions for tokens
 // Expiration durations in seconds
 const ACCESS_TOKEN_EXPIRATION = 15;
-const REFRESH_TOKEN_EXPIRATION = 60 * 60; // 7 days
+const REFRESH_TOKEN_EXPIRATION = 5 * 60; // 5  Minutes
 
 const generateAccessToken = (user) => {
     return jwt.sign({ id: user.id, email: user.email }, ACCESS_TOKEN_SECRET, { expiresIn: `${ACCESS_TOKEN_EXPIRATION}s` });

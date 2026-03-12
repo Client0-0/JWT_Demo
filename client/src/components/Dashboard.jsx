@@ -70,12 +70,27 @@ const Dashboard = () => {
         }
     }, [logout, navigate]);
 
-    // Triggers instantly when the timer hits 0
+    // Triggers instantly when the access token timer hits 0
     useEffect(() => {
         if (accExpired && !refExpired) {
             doBackgroundRefresh();
         }
     }, [accExpired, refExpired, doBackgroundRefresh]);
+
+    // Triggers when the refresh token itself expires — full session is over
+    // Guard: refreshTokenExp > 0 prevents firing when localStorage is empty (value = 0)
+    useEffect(() => {
+        if (refExpired && refreshTokenExp > 0) {
+            toast.error("🔒 Your session has fully expired. Please sign in again.", {
+                autoClose: 3000,
+            });
+            // Give the toast a moment to show before redirecting
+            setTimeout(() => {
+                logout();
+                navigate('/login');
+            }, 2000);
+        }
+    }, [refExpired, refreshTokenExp, logout, navigate]);
 
     const handleLogout = () => {
         logout();
